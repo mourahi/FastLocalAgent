@@ -6,11 +6,11 @@ Gère les paramètres dynamiques : modèle LLM et outils activés.
 class Config:
     """Configuration globale de l'application"""
     
-    # Modèle LLM par défaut
-    model_name: str = "qwen2.5:3b"
+    # Modèle LLM par défaut (qwen2.5-coder:3b est rapide et compatible avec les outils)
+    model_name: str = "qwen2.5-coder:3b"
     
-    # Température du modèle
-    temperature: float = 0.1
+    # Température du modèle (ajustée pour un bon équilibre entre qualité et vitesse)
+    temperature: float = 0.7
     
     # Outils activés par défaut
     enabled_tools: dict = {
@@ -24,8 +24,8 @@ class Config:
 
     # Timeout (seconds) for the search tool to avoid long blocking searches
 
-    # Timeout (seconds) applied to all tools to prevent long blocking operations
-    tool_timeout: float = 5.0
+    # Timeout (seconds) applied to all tools to prevent long blocking operations (réduit pour plus de réactivité)
+    tool_timeout: float = 3.0
 
     # Flag to request stopping the current model processing
     stop_requested: bool = False

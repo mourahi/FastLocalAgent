@@ -6,6 +6,7 @@ from ..core.agent import get_agent
 from ..core.config import Config
 from ..core.tools import get_active_tools
 import os
+import httpx
 from pathlib import Path
 
 router = APIRouter()
@@ -26,15 +27,18 @@ async def chat(msg: Message):
     Permet de surcharger le modèle et les outils pour cette requête.
     """
     # Mettre à jour la configuration si fournie dans le message
-    if msg.model_name:
+    config_changed = False
+    if msg.model_name and msg.model_name != Config.get_model_name():
         Config.set_model_name(msg.model_name)
-    
-    if msg.tools_config:
+        config_changed = True
+
+    if msg.tools_config and msg.tools_config != Config.get_enabled_tools():
         Config.set_enabled_tools(msg.tools_config)
-    
-    # Recréer l'agent avec la nouvelle configuration
-    current_agent = get_agent(force_recreate=True)
-    
+        config_changed = True
+
+    # Recréer l'agent uniquement si la configuration a changé
+    current_agent = get_agent(force_recreate=config_changed)
+
     async def event_generator():
         config = {"configurable": {"thread_id": msg.session_id}}
 
@@ -56,6 +60,20 @@ async def chat(msg: Message):
                 if kind == "on_chat_model_stream":
                     content = event["data"]["chunk"].content
                     if content:
+                        # Filtrer tous les messages JSON et les appels d'outils
+                        try:
+                            # Vérifier si le contenu contient des motifs d'appel d'outil
+                            if '"name"' in content and '"arguments"' in content:
+                                # Ignorer les messages JSON d'appel d'outil
+                                continue
+                            # Essayer de parser comme JSON
+                            content_dict = json.loads(content)
+                            if isinstance(content_dict, dict):
+                                # Ignorer tous les dictionnaires JSON (appels d'outils)
+                                continue
+                        except (json.JSONDecodeError, TypeError):
+                            # Ce n'est pas du JSON valide, on l'affiche normalement
+                            pass
                         yield f"data: {json.dumps({'chunk': content})}\n\n"
 
                 elif kind == "on_tool_start":
@@ -66,8 +84,8 @@ async def chat(msg: Message):
                 elif kind == "on_tool_end":
                     output = event["data"].get("output", "")
                     if isinstance(output, str) and output.strip():
-                        short = output[:300] + "..." if len(output) > 300 else output
-                        message = f"\nRésultat :\n{short}\n"
+                        # Afficher le résultat directement sans troncation excessive
+                        message = f"\nRésultat :\n{output}\n"
                         yield f"data: {json.dumps({'chunk': message})}\n\n"
 
         except Exception as e:
@@ -76,7 +94,7 @@ async def chat(msg: Message):
             yield f"data: {json.dumps({'chunk': error_message})}\n\n"
 
     return StreamingResponse(
-        event_generator(), 
+        event_generator(),
         media_type="text/event-stream"
     )
 
@@ -87,31 +105,50 @@ async def get_settings():
     return Config.to_dict()
 
 
+@router.get("/models")
+async def get_models():
+    """Récupère la liste des modèles disponibles depuis Ollama"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{Config.ollama_base_url}/api/tags", timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                # Filtrer les modèles qui ne supportent pas les outils
+                models_not_supporting_tools = ["gemma:7b", "phi3:mini"]
+                models = [model["name"] for model in data.get("models", []) 
+                         if model["name"] not in models_not_supporting_tools]
+                return {"models": models}
+            else:
+                return {"models": [], "error": f"Erreur Ollama: {response.status_code}"}
+    except Exception as e:
+        return {"models": [], "error": str(e)}
+
+
 @router.post("/settings")
 async def update_settings(settings: SettingsUpdate):
     """
     Met à jour la configuration globale.
-    
+
     Args:
         settings: Nouveaux paramètres (model_name, temperature, enabled_tools)
-    
+
     Returns:
         dict: Configuration mise à jour
     """
     global agent
-    
+
     if settings.model_name:
         Config.set_model_name(settings.model_name)
-    
+
     if settings.temperature is not None:
         Config.set_temperature(settings.temperature)
-    
+
     if settings.enabled_tools:
         Config.set_enabled_tools(settings.enabled_tools)
-    
+
     # Recréer l'agent avec la nouvelle configuration
     agent = get_agent(force_recreate=True)
-    
+
     return Config.to_dict()
 
 # Endpoint to request stopping the current model processing
@@ -119,7 +156,6 @@ async def update_settings(settings: SettingsUpdate):
 async def stop_processing():
     """Signal the backend to stop the ongoing streaming response."""
     Config.request_stop()
-    return {"status": "stop_requested"}
     return {"status": "stop_requested"}
 
 # Endpoint to clear the conversation history (reset thread)
@@ -141,25 +177,25 @@ CONVERSATIONS_DIR.mkdir(exist_ok=True)
 async def save_conversation(data: dict):
     """
     Sauvegarde la conversation sur le serveur.
-    
+
     Args:
         data: {
             "session_id": "default",
             "messages": [{"isUser": bool, "content": str}, ...]
         }
-    
+
     Returns:
         dict: Statut de la sauvegarde
     """
     try:
         session_id = data.get("session_id", "default")
         messages = data.get("messages", [])
-        
+
         # Créer le fichier de conversation
         file_path = CONVERSATIONS_DIR / f"{session_id}.json"
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump({"messages": messages}, f, ensure_ascii=False, indent=2)
-        
+
         return {"status": "saved", "session_id": session_id}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -169,10 +205,10 @@ async def save_conversation(data: dict):
 async def load_conversation(session_id: str = "default"):
     """
     Charge la conversation depuis le serveur.
-    
+
     Args:
         session_id: ID de la session
-    
+
     Returns:
         dict: {
             "messages": [{"isUser": bool, "content": str}, ...]
@@ -180,7 +216,7 @@ async def load_conversation(session_id: str = "default"):
     """
     try:
         file_path = CONVERSATIONS_DIR / f"{session_id}.json"
-        
+
         if file_path.exists():
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)

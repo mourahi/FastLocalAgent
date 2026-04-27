@@ -291,6 +291,35 @@
                 console.log('Impossible de charger les paramètres du backend, utilisation des paramètres locaux');
             }
             applySettings();
+            // Charger la liste des modèles
+            await loadModels();
+        }
+
+        async function loadModels() {
+            try {
+                const response = await fetch('/models');
+                if (response.ok) {
+                    const data = await response.json();
+                    const modelSelect = document.getElementById('model-select');
+                    if (modelSelect && data.models) {
+                        // Vider le select
+                        modelSelect.innerHTML = '';
+                        // Ajouter les modèles
+                        data.models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model;
+                            option.textContent = model;
+                            modelSelect.appendChild(option);
+                        });
+                        // Sélectionner le modèle actuel
+                        modelSelect.value = currentSettings.model;
+                    }
+                } else {
+                    console.error('Erreur lors du chargement des modèles:', data.error);
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des modèles:', error);
+            }
         }
 
         function applySettings() {

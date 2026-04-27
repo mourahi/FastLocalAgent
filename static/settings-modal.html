@@ -26,14 +26,7 @@
                         Modèle LLM
                     </label>
                     <select id="model-select" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-700">
-                        <option value="qwen2.5:3b">Qwen2.5 3B (Recommandé)</option>
-                        <option value="qwen2.5:7b">Qwen2.5 7B</option>
-                        <option value="qwen2.5:14b">Qwen2.5 14B</option>
-                        <option value="qwen2.5:latest">Qwen2.5 Latest</option>
-                        <option value="llama3.2:3b">Llama 3.2 3B</option>
-                        <option value="llama3.1:8b">Llama 3.1 8B</option>
-                        <option value="mistral:7b">Mistral 7B</option>
-                        <option value="gemma2:9b">Gemma2 9B</option>
+                        <option value="" disabled selected>Chargement des modèles...</option>
                     </select>
                 </div>
                 <!-- Theme selection -->
@@ -111,7 +104,7 @@
         </div>
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
             <button onclick="toggleSettings()" class="px-6 py-2.5 text-gray-700 hover:bg-gray-200 rounded-xl font-medium transition-all">Annuler</button>
-            <button onclick="saveSettings()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl">Enregistrer</button>
+            <button onclick="saveSettings(); toggleSettings();" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl">Enregistrer</button>
         </div>
     </div>
 </div>

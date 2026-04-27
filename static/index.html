@@ -11,68 +11,47 @@
     <!-- Marked.js pour le Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
-    <!-- Notre CSS personnalisé -->
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        #input::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 font-sans">
-
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-md">
-                    🤖
-                </div>
-                <div>
-                    <h1 class="text-2xl font-bold text-gray-800">Agent Local</h1>
-                    <p class="text-xs text-green-600 font-medium flex items-center gap-1.5">
-                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        En ligne • Ollama 3B
-                    </p>
-                </div>
-            </div>
-            
-            <div class="flex items-center gap-4">
-                <div class="text-sm text-gray-500">
-                    Session: <span id="session" class="font-mono text-indigo-600">default</span>
-                </div>
-                <button onclick="toggleSettings()" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Paramètres
-                </button>
-            </div>
+<body>
+    <header class="bg-white border-b border-gray-200 p-4">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">Agent Local</h1>
+            <button onclick="toggleSettings()" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Paramètres
+            </button>
         </div>
     </header>
 
-    <!-- Zone de chat -->
     <main class="max-w-4xl mx-auto px-6 py-6">
         <div id="chat" class="chat-container overflow-y-auto space-y-6 pr-4" style="padding-bottom: 120px;">
-            <!-- Message de bienvenue -->
-            <div class="flex justify-start">
-                <div class="ai-bubble message-bubble animate-fade-in">
-                    👋 Bonjour ! Je suis <strong>Agent Local</strong>.<br><br>
-                    Je peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.<br><br>
-                    <span class="text-sm text-gray-500">Exemple : "Liste les fichiers dans ."</span>
-                </div>
-            </div>
         </div>
     </main>
 
-    <!-- Zone de saisie -->
     <footer class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
         <div class="max-w-4xl mx-auto">
             <div class="flex gap-3">
-                <input id="input" 
-                       type="text" 
-                       class="flex-1 border border-gray-300 rounded-3xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-base placeholder-gray-400"
-                       placeholder="Posez votre question ici..."
-                       onkeypress="if(event.key === 'Enter') send()">
-                
-                <button onclick="send()" 
-                        class="bg-indigo-600 hover:bg-indigo-700 w-14 h-14 rounded-3xl flex items-center justify-center text-white shadow-lg transition-all active:scale-95">
+                <textarea id="input" class="flex-1 border border-gray-300 rounded-3xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-base placeholder-gray-400 resize-none break-words" placeholder="Posez votre question ici..." rows="1" style="min-height: 56px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;"></textarea>
+                <button onclick="stopProcessing()" class="bg-red-600 hover:bg-red-700 w-8 h-8 rounded-3xl flex items-center justify-center text-white shadow-md transition-all mr-2" title="Arrêter le traitement">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <rect width="12" height="12" x="6" y="6" rx="2" />
+                    </svg>
+                </button>
+                <button onclick="clearChat()" class="bg-gray-600 hover:bg-gray-700 w-8 h-8 rounded-3xl flex items-center justify-center text-white shadow-md transition-all mr-2" title="Effacer le chat">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <button onclick="send()" class="bg-indigo-600 hover:bg-indigo-700 w-14 h-14 rounded-3xl flex items-center justify-center text-white shadow-lg transition-all active:scale-95" title="Envoyer">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.874L5.999 12zm0 0h7.07" />
                     </svg>
@@ -82,169 +61,108 @@
         </div>
     </footer>
 
-    <!-- Modal Paramètres -->
-    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-fade-in">
-            <!-- Header Modal -->
-            <div class="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-4 flex items-center justify-between">
-                <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Paramètres
-                </h2>
-                <button onclick="toggleSettings()" class="text-white hover:bg-white/20 rounded-lg p-2 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
+    <!-- Container pour la modal Paramètres -->
+    <div id="settings-modal-container"></div>
 
-            <!-- Contenu Modal -->
-            <div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                
-                <!-- Sélection du Modèle -->
-                <div class="space-y-3">
-                    <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        Modèle LLM
-                    </label>
-                    <select id="model-select" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-700">
-                        <option value="qwen2.5:3b">Qwen2.5 3B (Recommandé)</option>
-                        <option value="qwen2.5:7b">Qwen2.5 7B</option>
-                        <option value="qwen2.5:14b">Qwen2.5 14B</option>
-                        <option value="qwen2.5:latest">Qwen2.5 Latest</option>
-                        <option value="llama3.2:3b">Llama 3.2 3B</option>
-                        <option value="llama3.1:8b">Llama 3.1 8B</option>
-                        <option value="mistral:7b">Mistral 7B</option>
-                        <option value="gemma2:9b">Gemma2 9B</option>
-                    </select>
-                    <p class="text-xs text-gray-500">Le modèle doit être installé dans Ollama</p>
-                </div>
-
-                <!-- Thème -->
-                <div class="space-y-3">
-                    <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                        </svg>
-                        Thème
-                    </label>
-                    <div class="flex gap-3">
-                        <button onclick="setTheme('light')" id="theme-light" class="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-indigo-600 bg-indigo-50 text-indigo-700 rounded-xl font-medium transition-all hover:bg-indigo-100">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            Clair
-                        </button>
-                        <button onclick="setTheme('dark')" id="theme-dark" class="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 bg-white text-gray-700 rounded-xl font-medium transition-all hover:bg-gray-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                            </svg>
-                            Sombre
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Outils -->
-                <div class="space-y-3">
-                    <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-                        </svg>
-                        Outils
-                    </label>
-                    <div class="space-y-2">
-                        <label class="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
-                            <div class="flex items-center gap-3">
-                                <span class="text-2xl">📁</span>
-                                <div>
-                                    <p class="font-medium text-gray-700">Lister fichiers</p>
-                                    <p class="text-xs text-gray-500">Explorer les dossiers</p>
-                                </div>
-                            </div>
-                            <input type="checkbox" id="tool-lister" checked class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
-                        </label>
-                        <label class="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
-                            <div class="flex items-center gap-3">
-                                <span class="text-2xl">🔢</span>
-                                <div>
-                                    <p class="font-medium text-gray-700">Calculatrice</p>
-                                    <p class="text-xs text-gray-500">Opérations mathématiques</p>
-                                </div>
-                            </div>
-                            <input type="checkbox" id="tool-math" checked class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
-                        </label>
-                        <label class="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
-                            <div class="flex items-center gap-3">
-                                <span class="text-2xl">🔍</span>
-                                <div>
-                                    <p class="font-medium text-gray-700">Recherche</p>
-                                    <p class="text-xs text-gray-500">Recherche simple</p>
-                                </div>
-                            </div>
-                            <input type="checkbox" id="tool-search" checked class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Timeout de recherche -->
-                <div class="space-y-3">
-                    <label class="block text-sm font-semibold text-gray-700" for="search-timeout">
-                        Timeout de recherche (secondes)
-                    </label>
-                    <input type="number" id="search-timeout" min="1" step="0.5" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="5.0">
-                    <p class="text-xs text-gray-500">Durée maximale d'une recherche avant interruption.</p>
-                </div>
-            </div>
-
-            <!-- Footer Modal -->
-            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-                <button onclick="toggleSettings()" class="px-6 py-2.5 text-gray-700 hover:bg-gray-200 rounded-xl font-medium transition-all">
-                    Annuler
-                </button>
-                <button onclick="saveSettings()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl">
-                    Enregistrer
-                </button>
-            </div>
-        </div>
-    </div>
 
     <script>
         const chat = document.getElementById("chat");
         const input = document.getElementById("input");
+        
+        // Vérifier que localStorage est disponible
+        try {
+            localStorage.setItem('test', 'test');
+            localStorage.removeItem('test');
+            console.log('localStorage est disponible');
+        } catch (e) {
+            console.error('localStorage n\'est pas disponible:', e);
+        }
 
-        function createMessageBubble(isUser = false) {
+        function createMessageBubble(isUser = false, content = '') {
             const wrapper = document.createElement("div");
             wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`;
-            
             const bubble = document.createElement("div");
             bubble.className = `message-bubble ${isUser ? 'user-bubble' : 'ai-bubble'}`;
-            
+            if (content) {
+                if (isUser) {
+                    bubble.textContent = content;
+                } else {
+                    bubble.innerHTML = content;
+                }
+            }
             wrapper.appendChild(bubble);
             chat.appendChild(wrapper);
             return bubble;
         }
 
+        function saveChat() {
+            const messages = [];
+            const wrappers = chat.querySelectorAll('.flex');
+            console.log('Nombre de messages à sauvegarder:', wrappers.length);
+            wrappers.forEach(wrapper => {
+                const bubble = wrapper.querySelector('.message-bubble');
+                if (bubble) {
+                    const isUser = wrapper.classList.contains('justify-end');
+                    const content = isUser ? bubble.textContent : bubble.innerHTML;
+                    messages.push({ isUser, content });
+                }
+            });
+            console.log('Messages à sauvegarder:', messages);
+            
+            // Sauvegarder sur le serveur
+            try {
+                fetch('/conversation/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: 'default',
+                        messages: messages
+                    })
+                }).then(response => response.json())
+                  .then(data => console.log('Chat sauvegardé sur le serveur:', data))
+                  .catch(error => console.error('Erreur lors de la sauvegarde:', error));
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde du chat:', error);
+            }
+        }
+
+        function loadChat() {
+            // Charger la conversation depuis le serveur
+            fetch('/conversation/load?session_id=default')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Conversation chargée du serveur:', data);
+                    const messages = data.messages || [];
+                    if (messages.length > 0) {
+                        messages.forEach(msg => {
+                            createMessageBubble(msg.isUser, msg.content);
+                        });
+                    } else {
+                        // Ajouter le message de bienvenue si aucun chat sauvegardé
+                        const welcomeBubble = createMessageBubble(false);
+                        welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span>");
+                        saveChat();
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement du chat:', error);
+                    // Fallback: afficher le message de bienvenue
+                    const welcomeBubble = createMessageBubble(false);
+                    welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span>");
+                });
+        }
+
         async function send() {
             const text = input.value.trim();
             if (!text) return;
-
             const userBubble = createMessageBubble(true);
             userBubble.textContent = text;
             input.value = "";
             chat.scrollTop = chat.scrollHeight;
-
             const aiBubble = createMessageBubble(false);
             aiBubble.textContent = "Réflexion en cours...";
-
             let fullContent = "";
-
             try {
-                // Préparer les paramètres
                 const requestBody = {
                     text: text,
                     session_id: "default",
@@ -255,23 +173,18 @@
                         search: currentSettings.tools.search
                     }
                 };
-
                 const response = await fetch("/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(requestBody)
                 });
-
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
-
                     const chunkStr = decoder.decode(value, { stream: true });
                     const lines = chunkStr.split('\n');
-
                     for (const line of lines) {
                         if (line.startsWith("data: ")) {
                             try {
@@ -288,17 +201,62 @@
                         }
                     }
                 }
+                console.log('Réponse complète reçue, sauvegarde du chat...');
+                saveChat(); // Sauvegarder après la réponse complète
             } catch (error) {
                 aiBubble.innerHTML = `<span class="text-red-500">Erreur de connexion au serveur.</span>`;
+                console.log('Erreur lors de la réponse, sauvegarde du chat...');
+                saveChat();
             }
         }
 
-        // Support Ctrl + Enter
-        input.addEventListener("keydown", function(e) {
-            if (e.ctrlKey && e.key === "Enter") send();
-        });
+        async function stopProcessing() {
+            try {
+                await fetch('/stop', { method: 'POST' });
+                const stopMsg = createMessageBubble(false);
+                stopMsg.textContent = "[Processus arrêté]";
+            } catch (e) {
+                console.error('Failed to send stop request', e);
+            }
+        }
 
-        // Gestion des paramètres
+        async function clearChat() {
+            chat.innerHTML = '';
+            try {
+                // Sauvegarder une conversation vide sur le serveur
+                await fetch('/conversation/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: 'default',
+                        messages: []
+                    })
+                });
+                // Appeler le endpoint de clear du serveur
+                await fetch('/clear', { method: 'POST' });
+                console.log('Chat effacé');
+            } catch (e) {
+                console.error('Failed to clear conversation on server', e);
+            }
+        }
+
+        if (input) {
+            input.addEventListener("keydown", function(e) {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                }
+            });
+            
+            // Ajuster la hauteur du textarea lors de la saisie
+            input.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+            });
+        } else {
+            console.error('Élément input non trouvé!');
+        }
+
         let currentSettings = {
             model: 'qwen2.5:3b',
             theme: 'light',
@@ -309,21 +267,15 @@
             }
         };
 
-        // Charger les paramètres depuis localStorage et backend
         async function loadSettings() {
-            // D'abord, charger depuis localStorage
             const saved = localStorage.getItem('agentSettings');
             if (saved) {
                 currentSettings = JSON.parse(saved);
             }
-            
-            // Ensuite, essayer de charger depuis le backend
             try {
                 const response = await fetch('/settings');
                 if (response.ok) {
                     const backendSettings = await response.json();
-                    
-                    // Fusionner avec les paramètres locaux
                     if (backendSettings.model_name) {
                         currentSettings.model = backendSettings.model_name;
                     }
@@ -338,43 +290,29 @@
             } catch (error) {
                 console.log('Impossible de charger les paramètres du backend, utilisation des paramètres locaux');
             }
-            
             applySettings();
         }
 
-        // Appliquer les paramètres
         function applySettings() {
-            // Appliquer le modèle
-            document.getElementById('model-select').value = currentSettings.model;
-            document.getElementById('current-model').textContent = currentSettings.model;
-
-            // Appliquer le thème
+            const modelSelect = document.getElementById('model-select');
+            if (modelSelect) modelSelect.value = currentSettings.model;
+            const currentModel = document.getElementById('current-model');
+            if (currentModel) currentModel.textContent = currentSettings.model;
             setTheme(currentSettings.theme);
-
-            // Appliquer les outils
-            document.getElementById('tool-lister').checked = currentSettings.tools.lister;
-            document.getElementById('tool-math').checked = currentSettings.tools.math;
-            document.getElementById('tool-search').checked = currentSettings.tools.search;
-
-            // Appliquer le timeout de recherche s'il existe
-            if (currentSettings.search_timeout !== undefined) {
-                document.getElementById('search-timeout').value = currentSettings.search_timeout;
-            }
+            const toolLister = document.getElementById('tool-lister');
+            if (toolLister) toolLister.checked = currentSettings.tools.lister;
+            const toolMath = document.getElementById('tool-math');
+            if (toolMath) toolMath.checked = currentSettings.tools.math;
+            const toolSearch = document.getElementById('tool-search');
+            if (toolSearch) toolSearch.checked = currentSettings.tools.search;
         }
 
-        // Basculer la modal
-        function toggleSettings() {
-            const modal = document.getElementById('settings-modal');
-            modal.classList.toggle('hidden');
-        }
-
-        // Définir le thème
         function setTheme(theme) {
             currentSettings.theme = theme;
             const body = document.body;
             const lightBtn = document.getElementById('theme-light');
             const darkBtn = document.getElementById('theme-dark');
-
+            if (!lightBtn || !darkBtn) return; // Attendre que la modal soit chargée
             if (theme === 'dark') {
                 body.classList.remove('bg-gray-50');
                 body.classList.add('bg-gray-900');
@@ -392,27 +330,13 @@
             }
         }
 
-        // Sauvegarder les paramètres
         async function saveSettings() {
-            // Récupérer le modèle sélectionné
             currentSettings.model = document.getElementById('model-select').value;
             document.getElementById('current-model').textContent = currentSettings.model;
-
-            // Récupérer l'état des outils
             currentSettings.tools.lister = document.getElementById('tool-lister').checked;
             currentSettings.tools.math = document.getElementById('tool-math').checked;
             currentSettings.tools.search = document.getElementById('tool-search').checked;
-
-            // Récupérer le timeout de recherche
-            const timeoutVal = parseFloat(document.getElementById('search-timeout').value);
-            if (!isNaN(timeoutVal) && timeoutVal > 0) {
-                currentSettings.search_timeout = timeoutVal;
-            }
-
-            // Sauvegarder dans localStorage
             localStorage.setItem('agentSettings', JSON.stringify(currentSettings));
-
-            // Envoyer au backend
             try {
                 const response = await fetch('/settings', {
                     method: 'POST',
@@ -423,38 +347,48 @@
                             lister: currentSettings.tools.lister,
                             math: currentSettings.tools.math,
                             search: currentSettings.tools.search
-                        },
-                        search_timeout: currentSettings.search_timeout
+                        }
                     })
                 });
-
                 if (response.ok) {
                     showNotification('Paramètres enregistrés avec succès !');
-                } else {
-                    showNotification('Erreur lors de la sauvegarde des paramètres');
                 }
-            } catch (error) {
-                showNotification('Erreur de connexion au serveur');
+            } catch (e) {
+                console.error('Erreur lors de l\'enregistrement des paramètres', e);
             }
-
-            // Fermer la modal
-            toggleSettings();
         }
 
-        // Afficher une notification
         function showNotification(message) {
             const notification = document.createElement('div');
-            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg animate-fade-in z-50';
+            notification.className = 'fixed top-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg';
             notification.textContent = message;
             document.body.appendChild(notification);
-            
             setTimeout(() => {
                 notification.remove();
             }, 3000);
         }
 
-        // Charger les paramètres au démarrage
-        loadSettings();
+        function toggleSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        // Charger le chat immédiatement
+        loadChat();
+
+        // Charger la modal des paramètres après le chargement initial
+        fetch('/static/settings-modal.html')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('settings-modal-container').innerHTML = html;
+                loadSettings(); // Charger les paramètres après la modal
+            })
+            .catch(error => console.error('Erreur lors du chargement de la modal:', error));
+
+        // Sauvegarder la conversation avant de quitter ou actualiser la page
+        window.addEventListener('beforeunload', function() {
+            saveChat();
+        });
     </script>
 </body>
 </html>

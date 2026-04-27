@@ -23,10 +23,12 @@ class Config:
     ollama_base_url: str = "http://localhost:11434"
 
     # Timeout (seconds) for the search tool to avoid long blocking searches
-    search_timeout: float = 5.0
 
     # Timeout (seconds) applied to all tools to prevent long blocking operations
     tool_timeout: float = 5.0
+
+    # Flag to request stopping the current model processing
+    stop_requested: bool = False
     
     @classmethod
     def get_model_name(cls) -> str:
@@ -57,6 +59,16 @@ class Config:
     def set_enabled_tools(cls, tools: dict) -> None:
         """Définit les outils activés"""
         cls.enabled_tools = tools
+
+    @classmethod
+    def request_stop(cls) -> None:
+        """Signal to stop the ongoing model streaming"""
+        cls.stop_requested = True
+
+    @classmethod
+    def clear_stop(cls) -> None:
+        """Clear the stop request flag"""
+        cls.stop_requested = False
     
     @classmethod
     def is_tool_enabled(cls, tool_name: str) -> bool:

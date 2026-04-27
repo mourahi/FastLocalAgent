@@ -48,6 +48,24 @@ input:focus {
 }
 
 button:hover {
+    transform: scale(1.05);
+}
+
+/* Masquer la barre de défilement du textarea */
+#input::-webkit-scrollbar {
+    display: none;
+}
+
+#input {
+    scrollbar-width: none;
+}
+
+/* Fallback pour navigateurs ne supportant pas backdrop-filter */
+@supports not (backdrop-filter: blur(4px)) {
+    #settings-modal {
+        background-color: rgba(0, 0, 0, 0.7);
+    }
+}
     transform: translateY(-1px);
 }
 

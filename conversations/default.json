@@ -1,0 +1,16 @@
+{
+  "messages": [
+    {
+      "isUser": false,
+      "content": "<p>👋 Bonjour ! Je suis <strong>Agent Local</strong>.</p>\n<p>Je peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.</p>\n<p><span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span></p>\n"
+    },
+    {
+      "isUser": true,
+      "content": "bonjour , je suis adil mourahi , j'espere que tu pourra te souvenir de moi"
+    },
+    {
+      "isUser": false,
+      "content": "<p>Bonjour Adil Mourahi, bien sûr, vous avez été contacté. Comment puis-je vous aider aujourd'hui ?</p>\n"
+    }
+  ]
+}

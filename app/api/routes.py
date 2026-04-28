@@ -1,11 +1,11 @@
 import json
+import re
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, StreamingResponse
 from ..schemas.chat import Message, SettingsUpdate
 from ..core.agent import get_agent
 from ..core.config import Config
 from ..core.tools import get_active_tools
-import os
 import httpx
 from pathlib import Path
 
@@ -53,11 +53,14 @@ async def chat(msg: Message):
         stream_start_time = time.time()
         event_count = 0
         first_event_time = None
-
+        Config.clear_stop()
         emitted_texts = set()
-        chain_stream_seen = False
         emitted_text = ""
         last_emitted_chunk = ""
+        raw_buffer = ""
+        streaming_mode = None   # None=indécis, "stream"=direct, "buffer"=appel outil potentiel
+        tool_executed = False
+        something_emitted = False
 
         def normalize_content(value):
             return str(value).replace("\r", "")
@@ -75,11 +78,15 @@ async def chat(msg: Message):
                 return None
             if len(content) > 40 and content in emitted_text:
                 return None
-            
             emitted_texts.add(content)
             emitted_text += content
             last_emitted_chunk = content
             return content
+
+        def emit(message):
+            nonlocal something_emitted
+            something_emitted = True
+            return f"data: {json.dumps({'message': message})}\n\n"
 
         try:
             async for event in current_agent.astream_events(
@@ -92,152 +99,118 @@ async def chat(msg: Message):
                     first_event_time = time.time() - stream_start_time
                     print(f"⏱️ Temps avant le premier événement: {first_event_time:.2f}s")
                     print(f"⏱️ Temps total depuis le début de la requête: {time.time() - start_time:.2f}s")
-                # Check if a stop has been requested
+
                 if Config.stop_requested:
-                    stop_msg = "\n[Processus arrêté par l'utilisateur]\n"
-                    yield f"data: {json.dumps({'message': stop_msg})}\n\n"
-                    continue
+                    yield emit("\n[Processus arrêté par l'utilisateur]\n")
+                    break
+
                 kind = event["event"]
 
-                if kind == "on_chain_stream":
-                    chain_stream_seen = True
-                    chunk = event["data"].get("chunk", {})
-                    messages = []
-                    if isinstance(chunk, dict):
-                        messages = chunk.get("messages", [])
-                    elif hasattr(chunk, "messages"):
-                        messages = chunk.messages
-                    for message in messages:
-                        content = getattr(message, "content", None) or (message.get("content") if isinstance(message, dict) else None)
+                if kind == "on_chat_model_stream":
+                    chunk = event["data"]["chunk"]
+                    if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
+                        continue
+                    content = chunk.content
+                    if not content or not isinstance(content, str):
+                        continue
+
+                    raw_buffer += content
+
+                    if streaming_mode is None:
+                        # Décision dès le 1er caractère non-whitespace
+                        stripped = raw_buffer.lstrip()
+                        if stripped:
+                            if stripped[0] in ('{', '`'):
+                                streaming_mode = "buffer"
+                            else:
+                                streaming_mode = "stream"
+                                flushed = should_emit(raw_buffer)
+                                if flushed:
+                                    yield emit(flushed)
+                    elif streaming_mode == "stream":
                         content = should_emit(content)
                         if content:
-                            yield f"data: {json.dumps({'message': content})}\n\n"
-
-                elif kind == "on_chain_end" and not chain_stream_seen:
-                    output = event["data"].get("output")
-                    if isinstance(output, dict) and "messages" in output:
-                        for message in output["messages"]:
-                            content = getattr(message, "content", None) or (message.get("content") if isinstance(message, dict) else None)
-                            # Filter tool calls
-                            is_tool_call = False
-                            stripped = content.strip() if content else ""
-                            if stripped.startswith("Action:") or "Action:" in stripped:
-                                is_tool_call = True
-                            elif stripped.startswith("{") and stripped.endswith("}"):
-                                try:
-                                    parsed = json.loads(stripped)
-                                    if isinstance(parsed, dict) and ("name" in parsed or "arguments" in parsed):
-                                        is_tool_call = True
-                                except:
-                                    pass
-                            
-                            if not is_tool_call:
-                                content = should_emit(content)
-                                if content:
-                                    yield f"data: {json.dumps({'message': content})}\n\n"
-
-                elif kind == "on_chat_model_stream" and not chain_stream_seen:
-                    content = event["data"]["chunk"].content
-                    if content and isinstance(content, str):
-                        # Skip tool calls - don't emit them
-                        stripped = content.strip()
-                        is_tool_output = False
-                        
-                        # Check for tool call patterns
-                        if "Action:" in content or "Action Input:" in content or \
-                           (stripped.startswith("{") and "name" in content):
-                            is_tool_output = True
-                        
-                        if not is_tool_output:
-                            content = should_emit(content)
-                            if content:
-                                yield f"data: {json.dumps({'message': content})}\n\n"
-
-                elif kind == "on_chat_model_end" and not chain_stream_seen:
-                    output = event["data"].get("output")
-                    content = getattr(output, "content", None) or (output.get("content") if isinstance(output, dict) else None)
-                    
-                    # Check if the content contains a tool call
-                    tool_result = None
-                    is_tool_call = False
-                    
-                    if content:
-                        # Check if this is a tool call
-                        stripped = content.strip()
-                        print(f"DEBUG on_chat_model_end: stripped={repr(stripped[:100])}")
-                        if stripped.startswith("Action:") and "Action Input:" in stripped:
-                            is_tool_call = True
-                            print(f"DEBUG: Detected ReAct tool call")
-                        elif stripped.startswith("{") and stripped.endswith("}"):
-                            try:
-                                parsed = json.loads(stripped)
-                                if isinstance(parsed, dict) and ("name" in parsed or "arguments" in parsed):
-                                    is_tool_call = True
-                                    print(f"DEBUG: Detected JSON tool call")
-                            except:
-                                pass
-                        
-                        print(f"DEBUG: is_tool_call={is_tool_call}")
-                        
-                        # If it's a tool call, execute it
-                        if is_tool_call:
-                            try:
-                                # Check for ReAct format
-                                if "Action:" in content and "Action Input:" in content:
-                                    action_part = content.split("Action:")[1].split("Action Input:")[0].strip()
-                                    input_part = content.split("Action Input:", 1)[1].strip()
-                                    
-                                    tool_name = action_part.strip()
-                                    tool_args = input_part.strip()
-                                    
-                                    print(f"DEBUG: tool_name={tool_name}, tool_args={repr(tool_args[:100])}")
-                                    
-                                    if tool_name == "executor_python" and tool_args.startswith("{") and tool_args.endswith("}"):
-                                        args_dict = json.loads(tool_args)
-                                        code = args_dict.get("code", "")
-                                        
-                                        if code:
-                                            from ..core.tools.python_executor_tool import executor_python
-                                            result = executor_python.invoke({"code": code})
-                                            tool_result = f"\n→ Exécution de l'outil : {tool_name}\n\nRésultat :\n{result}\n"
-                                            print(f"DEBUG: Tool executed, result={repr(tool_result[:100])}")
-                            except Exception as e:
-                                print(f"Erreur lors de l'exécution de l'outil dans on_chat_model_end: {e}")
-                        else:
-                            # Not a tool call, emit the content
-                            print(f"DEBUG: Not a tool call, emitting content")
-                            content = should_emit(content)
-                            if content:
-                                yield f"data: {json.dumps({'message': content})}\n\n"
-                    
-                    if tool_result:
-                        # Emit the tool result
-                        print(f"DEBUG: Emitting tool result")
-                        yield f"data: {json.dumps({'message': tool_result})}\n\n"
-                    
-                    # Clear the buffer since we're done with this message
-                    stream_buffer = ""
+                            yield emit(content)
+                    # "buffer" : on accumule sans émettre
 
                 elif kind == "on_tool_start":
-                    tool_name = event.get("name", "outil")
-                    message = f"\n→ Utilisation de l'outil : {tool_name}\n"
-                    message = should_emit(message)
-                    if message:
-                        yield f"data: {json.dumps({'message': message})}\n\n"
+                    tool_input = event["data"].get("input", {})
+                    code = tool_input.get("code", "") if isinstance(tool_input, dict) else ""
+                    if code:
+                        yield emit(f"\n```python\n{code}\n```\n")
 
                 elif kind == "on_tool_end":
+                    tool_executed = True
                     output = event["data"].get("output", "")
                     if isinstance(output, str) and output.strip():
-                        message = f"\nRésultat :\n{output}\n"
-                        message = should_emit(message)
-                        if message:
-                            yield f"data: {json.dumps({'message': message})}\n\n"
-                        # Ajouter le résultat à l'historique des messages pour que le modèle puisse y répondre
+                        display_output = output[:500] + "..." if len(output) > 500 else output
+                        yield emit(f"\n**Résultat :**\n```\n{display_output}\n```\n")
 
         except Exception as e:
             print(f"Erreur streaming: {e}")
-            error_message = f"\n\nErreur serveur : {str(e)}"
-            yield f"data: {json.dumps({'message': error_message})}\n\n"
+            yield emit(f"\n\nErreur serveur : {str(e)}")
+
+        # Cas : streaming_mode jamais résolu (réponse vide / whitespace only)
+        if streaming_mode is None and raw_buffer.strip():
+            flushed = should_emit(raw_buffer)
+            if flushed:
+                yield emit(flushed)
+
+        # Cas : mode buffer — détecter si appel outil ou texte normal
+        if streaming_mode == "buffer" and not tool_executed:
+            src = raw_buffer.strip()
+            src = re.sub(r'^```[a-zA-Z]*\n?', '', src).strip()
+            src = re.sub(r'\n?```$', '', src).strip()
+
+            is_json_tool_call = src.startswith('{') and "executor_python" in src and "code" in src
+
+            if is_json_tool_call:
+                code = ""
+                try:
+                    start_idx = src.find('{')
+                    brace_count, end_idx = 0, -1
+                    for i, c in enumerate(src[start_idx:], start_idx):
+                        if c == '{':
+                            brace_count += 1
+                        elif c == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                end_idx = i + 1
+                                break
+                    if end_idx > start_idx:
+                        tool_data = json.loads(src[start_idx:end_idx])
+                        if tool_data.get("name") == "executor_python":
+                            code = tool_data.get("arguments", {}).get("code", "")
+                except Exception:
+                    pass
+
+                if not code:
+                    m = re.search(r'code["\s:]*(.+?)(?=\s*["\']?\s*timeout|\s*"?\s*}\s*}|$)', src, re.DOTALL)
+                    if m:
+                        code = m.group(1).strip().rstrip('}"\'} \n\t')
+
+                if code:
+                    try:
+                        from ..core.tools.python_executor_tool import executor_python as _exec_tool
+                        yield emit("```python\n" + code + "\n```\n")
+                        result = _exec_tool.invoke({"code": code})
+                        yield emit("\n**Résultat :**\n```\n" + result + "\n```\n")
+                    except Exception as _e:
+                        yield emit("\nErreur exécution : " + str(_e) + "\n")
+                else:
+                    # Buffer mais pas un appel outil — émettre comme texte
+                    flushed = should_emit(raw_buffer)
+                    if flushed:
+                        yield emit(flushed)
+            else:
+                # Buffer mais pas un appel outil — émettre comme texte
+                flushed = should_emit(raw_buffer)
+                if flushed:
+                    yield emit(flushed)
+
+        # Filet de sécurité : rien n'a été émis du tout
+        if not something_emitted:
+            yield f"data: {json.dumps({'message': '[Aucune réponse du modèle]'})}\n\n"
 
         total_time = time.time() - start_time
         print(f"⏱️ Temps total de traitement: {total_time:.2f}s")

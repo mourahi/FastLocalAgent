@@ -17,7 +17,10 @@ agent = get_agent()
 
 @router.get("/")
 async def home():
-    return FileResponse("static/index.html")
+    # Servir le fichier index.html depuis le dossier static
+    static_dir = Path(__file__).parent.parent.parent / "static"
+    index_path = static_dir / "index.html"
+    return FileResponse(index_path, media_type="text/html")
 
 
 @router.post("/chat")
@@ -26,6 +29,9 @@ async def chat(msg: Message):
     Endpoint de chat avec support du streaming.
     Permet de surcharger le modèle et les outils pour cette requête.
     """
+    import time
+    start_time = time.time()
+
     # Mettre à jour la configuration si fournie dans le message
     config_changed = False
     if msg.model_name and msg.model_name != Config.get_model_name():
@@ -37,10 +43,43 @@ async def chat(msg: Message):
         config_changed = True
 
     # Recréer l'agent uniquement si la configuration a changé
+    agent_start_time = time.time()
     current_agent = get_agent(force_recreate=config_changed)
+    agent_time = time.time() - agent_start_time
+    print(f"⏱️ Temps de récupération/création de l'agent: {agent_time:.2f}s")
 
     async def event_generator():
         config = {"configurable": {"thread_id": msg.session_id}}
+        stream_start_time = time.time()
+        event_count = 0
+        first_event_time = None
+
+        emitted_texts = set()
+        chain_stream_seen = False
+        emitted_text = ""
+        last_emitted_chunk = ""
+
+        def normalize_content(value):
+            return str(value).replace("\r", "")
+
+        def should_emit(content):
+            nonlocal emitted_text, last_emitted_chunk
+            content = normalize_content(content)
+            if not content.strip():
+                return None
+            if content == last_emitted_chunk:
+                return None
+            if content in emitted_texts:
+                return None
+            if emitted_text.endswith(content):
+                return None
+            if len(content) > 40 and content in emitted_text:
+                return None
+            
+            emitted_texts.add(content)
+            emitted_text += content
+            last_emitted_chunk = content
+            return content
 
         try:
             async for event in current_agent.astream_events(
@@ -48,50 +87,161 @@ async def chat(msg: Message):
                 version="v2",
                 config=config,
             ):
+                event_count += 1
+                if first_event_time is None:
+                    first_event_time = time.time() - stream_start_time
+                    print(f"⏱️ Temps avant le premier événement: {first_event_time:.2f}s")
+                    print(f"⏱️ Temps total depuis le début de la requête: {time.time() - start_time:.2f}s")
                 # Check if a stop has been requested
                 if Config.stop_requested:
-                    # Reset flag but continue streaming so new messages can be processed
-                    Config.clear_stop()
                     stop_msg = "\n[Processus arrêté par l'utilisateur]\n"
-                    yield f"data: {json.dumps({'chunk': stop_msg})}\n\n"
-                    # Continue to listen for new messages instead of ending the stream
+                    yield f"data: {json.dumps({'message': stop_msg})}\n\n"
+                    continue
                 kind = event["event"]
 
-                if kind == "on_chat_model_stream":
+                if kind == "on_chain_stream":
+                    chain_stream_seen = True
+                    chunk = event["data"].get("chunk", {})
+                    messages = []
+                    if isinstance(chunk, dict):
+                        messages = chunk.get("messages", [])
+                    elif hasattr(chunk, "messages"):
+                        messages = chunk.messages
+                    for message in messages:
+                        content = getattr(message, "content", None) or (message.get("content") if isinstance(message, dict) else None)
+                        content = should_emit(content)
+                        if content:
+                            yield f"data: {json.dumps({'message': content})}\n\n"
+
+                elif kind == "on_chain_end" and not chain_stream_seen:
+                    output = event["data"].get("output")
+                    if isinstance(output, dict) and "messages" in output:
+                        for message in output["messages"]:
+                            content = getattr(message, "content", None) or (message.get("content") if isinstance(message, dict) else None)
+                            # Filter tool calls
+                            is_tool_call = False
+                            stripped = content.strip() if content else ""
+                            if stripped.startswith("Action:") or "Action:" in stripped:
+                                is_tool_call = True
+                            elif stripped.startswith("{") and stripped.endswith("}"):
+                                try:
+                                    parsed = json.loads(stripped)
+                                    if isinstance(parsed, dict) and ("name" in parsed or "arguments" in parsed):
+                                        is_tool_call = True
+                                except:
+                                    pass
+                            
+                            if not is_tool_call:
+                                content = should_emit(content)
+                                if content:
+                                    yield f"data: {json.dumps({'message': content})}\n\n"
+
+                elif kind == "on_chat_model_stream" and not chain_stream_seen:
                     content = event["data"]["chunk"].content
+                    if content and isinstance(content, str):
+                        # Skip tool calls - don't emit them
+                        stripped = content.strip()
+                        is_tool_output = False
+                        
+                        # Check for tool call patterns
+                        if "Action:" in content or "Action Input:" in content or \
+                           (stripped.startswith("{") and "name" in content):
+                            is_tool_output = True
+                        
+                        if not is_tool_output:
+                            content = should_emit(content)
+                            if content:
+                                yield f"data: {json.dumps({'message': content})}\n\n"
+
+                elif kind == "on_chat_model_end" and not chain_stream_seen:
+                    output = event["data"].get("output")
+                    content = getattr(output, "content", None) or (output.get("content") if isinstance(output, dict) else None)
+                    
+                    # Check if the content contains a tool call
+                    tool_result = None
+                    is_tool_call = False
+                    
                     if content:
-                        # Filtrer tous les messages JSON et les appels d'outils
-                        try:
-                            # Vérifier si le contenu contient des motifs d'appel d'outil
-                            if '"name"' in content and '"arguments"' in content:
-                                # Ignorer les messages JSON d'appel d'outil
-                                continue
-                            # Essayer de parser comme JSON
-                            content_dict = json.loads(content)
-                            if isinstance(content_dict, dict):
-                                # Ignorer tous les dictionnaires JSON (appels d'outils)
-                                continue
-                        except (json.JSONDecodeError, TypeError):
-                            # Ce n'est pas du JSON valide, on l'affiche normalement
-                            pass
-                        yield f"data: {json.dumps({'chunk': content})}\n\n"
+                        # Check if this is a tool call
+                        stripped = content.strip()
+                        print(f"DEBUG on_chat_model_end: stripped={repr(stripped[:100])}")
+                        if stripped.startswith("Action:") and "Action Input:" in stripped:
+                            is_tool_call = True
+                            print(f"DEBUG: Detected ReAct tool call")
+                        elif stripped.startswith("{") and stripped.endswith("}"):
+                            try:
+                                parsed = json.loads(stripped)
+                                if isinstance(parsed, dict) and ("name" in parsed or "arguments" in parsed):
+                                    is_tool_call = True
+                                    print(f"DEBUG: Detected JSON tool call")
+                            except:
+                                pass
+                        
+                        print(f"DEBUG: is_tool_call={is_tool_call}")
+                        
+                        # If it's a tool call, execute it
+                        if is_tool_call:
+                            try:
+                                # Check for ReAct format
+                                if "Action:" in content and "Action Input:" in content:
+                                    action_part = content.split("Action:")[1].split("Action Input:")[0].strip()
+                                    input_part = content.split("Action Input:", 1)[1].strip()
+                                    
+                                    tool_name = action_part.strip()
+                                    tool_args = input_part.strip()
+                                    
+                                    print(f"DEBUG: tool_name={tool_name}, tool_args={repr(tool_args[:100])}")
+                                    
+                                    if tool_name == "executor_python" and tool_args.startswith("{") and tool_args.endswith("}"):
+                                        args_dict = json.loads(tool_args)
+                                        code = args_dict.get("code", "")
+                                        
+                                        if code:
+                                            from ..core.tools.python_executor_tool import executor_python
+                                            result = executor_python.invoke({"code": code})
+                                            tool_result = f"\n→ Exécution de l'outil : {tool_name}\n\nRésultat :\n{result}\n"
+                                            print(f"DEBUG: Tool executed, result={repr(tool_result[:100])}")
+                            except Exception as e:
+                                print(f"Erreur lors de l'exécution de l'outil dans on_chat_model_end: {e}")
+                        else:
+                            # Not a tool call, emit the content
+                            print(f"DEBUG: Not a tool call, emitting content")
+                            content = should_emit(content)
+                            if content:
+                                yield f"data: {json.dumps({'message': content})}\n\n"
+                    
+                    if tool_result:
+                        # Emit the tool result
+                        print(f"DEBUG: Emitting tool result")
+                        yield f"data: {json.dumps({'message': tool_result})}\n\n"
+                    
+                    # Clear the buffer since we're done with this message
+                    stream_buffer = ""
 
                 elif kind == "on_tool_start":
                     tool_name = event.get("name", "outil")
                     message = f"\n→ Utilisation de l'outil : {tool_name}\n"
-                    yield f"data: {json.dumps({'chunk': message})}\n\n"
+                    message = should_emit(message)
+                    if message:
+                        yield f"data: {json.dumps({'message': message})}\n\n"
 
                 elif kind == "on_tool_end":
                     output = event["data"].get("output", "")
                     if isinstance(output, str) and output.strip():
-                        # Afficher le résultat directement sans troncation excessive
                         message = f"\nRésultat :\n{output}\n"
-                        yield f"data: {json.dumps({'chunk': message})}\n\n"
+                        message = should_emit(message)
+                        if message:
+                            yield f"data: {json.dumps({'message': message})}\n\n"
+                        # Ajouter le résultat à l'historique des messages pour que le modèle puisse y répondre
 
         except Exception as e:
             print(f"Erreur streaming: {e}")
             error_message = f"\n\nErreur serveur : {str(e)}"
-            yield f"data: {json.dumps({'chunk': error_message})}\n\n"
+            yield f"data: {json.dumps({'message': error_message})}\n\n"
+
+        total_time = time.time() - start_time
+        print(f"⏱️ Temps total de traitement: {total_time:.2f}s")
+        print(f"⏱️ Nombre d'événements traités: {event_count}")
 
     return StreamingResponse(
         event_generator(),
@@ -130,7 +280,7 @@ async def update_settings(settings: SettingsUpdate):
     Met à jour la configuration globale.
 
     Args:
-        settings: Nouveaux paramètres (model_name, temperature, enabled_tools)
+        settings: Nouveaux paramètres (model_name, temperature, enabled_tools, performance options)
 
     Returns:
         dict: Configuration mise à jour
@@ -145,6 +295,12 @@ async def update_settings(settings: SettingsUpdate):
 
     if settings.enabled_tools:
         Config.set_enabled_tools(settings.enabled_tools)
+    
+    if settings.enable_model_preloading is not None:
+        Config.set_enable_model_preloading(settings.enable_model_preloading)
+    
+    if settings.enable_model_check is not None:
+        Config.set_enable_model_check(settings.enable_model_check)
 
     # Recréer l'agent avec la nouvelle configuration
     agent = get_agent(force_recreate=True)

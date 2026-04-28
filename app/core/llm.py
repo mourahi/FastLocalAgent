@@ -6,10 +6,11 @@ async def initialize_default_model():
     """
     Initialise le premier modèle disponible comme modèle par défaut
     si le modèle configuré n'est pas disponible.
+    Version optimisée pour le démarrage rapide.
     """
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{Config.ollama_base_url}/api/tags", timeout=5.0)
+            response = await client.get(f"{Config.ollama_base_url}/api/tags", timeout=2.0)
             if response.status_code == 200:
                 data = response.json()
                 models = data.get("models", [])
@@ -22,9 +23,12 @@ async def initialize_default_model():
                         # Utiliser le premier modèle disponible
                         first_model = models[0]["name"]
                         Config.set_model_name(first_model)
-                        print(f"Modèle par défaut non trouvé, utilisation de: {first_model}")
+                        print(f"ℹ️ Modèle par défaut changé vers: {first_model}")
+                    else:
+                        print(f"ℹ️ Modèle {default_model} vérifié et disponible")
     except Exception as e:
-        print(f"Erreur lors de l'initialisation du modèle par défaut: {e}")
+        print(f"⚠️ Impossible de vérifier les modèles Ollama: {e}")
+        print("ℹ️ Utilisation du modèle configuré par défaut")
 
 def get_llm(model_name: str = None, temperature: float = None):
     """
@@ -56,6 +60,5 @@ def get_llm(model_name: str = None, temperature: float = None):
         mirostat=2,  # Améliore la qualité des réponses
         mirostat_tau=5.0,  # Contrôle la diversité des réponses
         mirostat_eta=0.1,  # Ajuste la vitesse d'adaptation
-        format="",  # Pas de format JSON forcé pour les réponses
-        keep_alive=-1  # Garder le modèle en mémoire
+        keep_alive=-1,  # Garder le modèle en mémoire
     )

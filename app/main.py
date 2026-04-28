@@ -16,73 +16,59 @@ app = FastAPI(
     redoc_url=None,  # Désactive la documentation ReDoc pour économiser les ressources
 )
 
+# Monter les fichiers statiques
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Configurer CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],  # Restreindre aux origines locales
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 async def startup_event():
     """Initialise le premier modèle disponible au démarrage du serveur et précharge le modèle dans la mémoire"""
     print("🚀 Démarrage de l'application Agent Local...")
 
     # Initialiser le modèle par défaut
-    await initialize_default_model()
+    if Config.enable_model_check:
+        await initialize_default_model()
 
-    # Précharger le modèle dans la mémoire avec une méthode plus efficace
-    try:
-        model_name = Config.get_model_name()
-        print(f"⏳ Préchargement du modèle {model_name} dans la mémoire...")
-        
-        # Précharger le modèle avec plusieurs requêtes courtes via l'API Ollama directe
-        test_prompts = ["Hi", "Test", "Ready", "Hello", "Start"]
-        
-        for i, prompt in enumerate(test_prompts, 1):
-            try:
-                print(f"  ⏳ Préchargement {i}/{len(test_prompts)}: '{prompt}'")
-                
-                payload = {
-                    "model": model_name,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "num_predict": 10,  # Réduit la longueur de réponse pour le préchargement
-                        "temperature": 0.1   # Température basse pour des réponses prévisibles
-                    }
-                }
-                
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        f"{Config.ollama_base_url}/api/generate",
-                        json=payload,
-                        timeout=60.0
-                    )
-                    
-                    if response.status_code == 200:
-                        print(f"  ✅ Préchargement {i}/{len(test_prompts)} terminé")
-                    else:
-                        print(f"  ⚠️ Erreur lors du préchargement {i}: {response.status_code}")
-                        
-            except Exception as e:
-                print(f"  ❌ Erreur lors du préchargement {i}: {e}")
-                continue
-        
-        print(f"✅ Modèle {model_name} préchargé avec succès !")
-    except Exception as e:
-        print(f"⚠️ Erreur lors du préchargement du modèle: {e}")
+    # Précharger l'agent complet en arrière-plan
+    if Config.enable_model_preloading:
+        import asyncio
+        asyncio.create_task(preload_agent_async())
+        print("🔄 Préchargement de l'agent en cours (asynchrone)...")
+    else:
+        print("ℹ️ Préchargement de l'agent désactivé (démarrage rapide)")
 
     print("🎉 Application prête à recevoir des requêtes !")
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# Monter le dossier static pour servir index.html
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Monter le dossier images
-IMAGE_DIR = os.path.abspath("images")
-app.mount("/images", StaticFiles(directory=IMAGE_DIR), name="images")
-
-# Inclure les routes
+async def preload_agent_async():
+    """Précharge l'agent complet (modèle + LangGraph) de manière asynchrone"""
+    try:
+        from .core.agent import get_agent
+        from .core.llm import get_llm
+        
+        print(f"⏳ Préchargement de l'agent...")
+        
+        # Créer l'agent (cela chargera le modèle et initialisera LangGraph)
+        start_time = asyncio.get_event_loop().time()
+        agent = get_agent(force_recreate=True)
+        agent_time = asyncio.get_event_loop().time() - start_time
+        
+        # Faire une requête de test pour s'assurer que tout fonctionne
+        test_start = asyncio.get_event_loop().time()
+        # On ne fait pas de requête réelle pour éviter de consommer des ressources
+        # Juste l'initialisation
+        test_time = asyncio.get_event_loop().time() - test_start
+        
+        print(f"✅ Agent préchargé avec succès en arrière-plan (agent: {agent_time:.2f}s, test: {test_time:.2f}s)")
+        
+    except Exception as e:
+        print(f"⚠️ Erreur lors du préchargement de l'agent: {e}")
 app.include_router(router)

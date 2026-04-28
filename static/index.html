@@ -57,7 +57,7 @@
                     </svg>
                 </button>
             </div>
-            <p class="text-center text-[10px] text-gray-400 mt-3">Agent Local • Modèle <span id="current-model">qwen2.5:3b</span></p>
+            <p class="text-center text-[10px] text-gray-400 mt-3">Agent Local • Modèle <span id="current-model">qwen2.5-coder:3b</span></p>
         </div>
     </footer>
 
@@ -162,6 +162,7 @@
             const aiBubble = createMessageBubble(false);
             aiBubble.textContent = "Réflexion en cours...";
             let fullContent = "";
+            let lastSseMessage = "";
             try {
                 const requestBody = {
                     text: text,
@@ -189,11 +190,16 @@
                         if (line.startsWith("data: ")) {
                             try {
                                 const data = JSON.parse(line.substring(6));
-                                if (data.chunk) {
+                                if (data.message) {
+                                    const message = data.message.replace(/\r/g, "");
+                                    if (!message) continue;
+                                    if (message === lastSseMessage) continue;
+                                    if (fullContent.endsWith(message)) continue;
+                                    lastSseMessage = message;
                                     if (aiBubble.textContent.includes("Réflexion")) {
                                         aiBubble.innerHTML = "";
                                     }
-                                    fullContent += data.chunk;
+                                    fullContent += message;
                                     aiBubble.innerHTML = marked.parse(fullContent);
                                     chat.scrollTop = chat.scrollHeight;
                                 }
@@ -258,7 +264,7 @@
         }
 
         let currentSettings = {
-            model: 'qwen2.5:3b',
+            model: 'qwen2.5-coder:3b',
             theme: 'light',
             tools: {
                 lister: true,

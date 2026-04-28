@@ -49,12 +49,13 @@ def get_agent(force_recreate: bool = False):
     llm = get_llm()
     active_tools = get_active_tools()
 
+    # Use create_react_agent with prompt parameter
+    from langgraph.prebuilt import create_react_agent
     _agent_cache = create_react_agent(
         model=llm,
         tools=active_tools,
         checkpointer=memory,
         prompt=SYSTEM_PROMPT,
-        debug=False  # Désactiver le mode debug pour éviter l'affichage JSON
     )
 
     _config_cache = current_config

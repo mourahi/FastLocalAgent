@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Dict, Literal
+from typing import Optional, Dict
 
 class Message(BaseModel):
     text: str = Field(..., min_length=1, max_length=4096, description="Message de l'utilisateur")

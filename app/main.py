@@ -1,12 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import os
 import asyncio
-import httpx
 
 from .api.routes import router
-from .core.llm import initialize_default_model, get_llm
+from .core.llm import initialize_default_model
 from .core.config import Config
 
 app = FastAPI(
@@ -39,7 +37,6 @@ async def startup_event():
 
     # Précharger l'agent complet en arrière-plan
     if Config.enable_model_preloading:
-        import asyncio
         asyncio.create_task(preload_agent_async())
         print("🔄 Préchargement de l'agent en cours (asynchrone)...")
     else:
@@ -52,8 +49,7 @@ async def preload_agent_async():
     """Précharge l'agent complet (modèle + LangGraph) de manière asynchrone"""
     try:
         from .core.agent import get_agent
-        from .core.llm import get_llm
-        
+
         print(f"⏳ Préchargement de l'agent...")
         
         # Créer l'agent (cela chargera le modèle et initialisera LangGraph)

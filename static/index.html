@@ -140,7 +140,7 @@
                     } else {
                         // Ajouter le message de bienvenue si aucun chat sauvegardé
                         const welcomeBubble = createMessageBubble(false);
-                        welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span>");
+                        welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux discuter avec toi et exécuter du code Python pour obtenir des infos système, faire des calculs ou manipuler des données.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Quel est mon espace disque ?\" ou \"Calcule la racine carrée de 144\"</span>");
                         saveChat();
                     }
                 })
@@ -148,7 +148,7 @@
                     console.error('Erreur lors du chargement du chat:', error);
                     // Fallback: afficher le message de bienvenue
                     const welcomeBubble = createMessageBubble(false);
-                    welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span>");
+                    welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux discuter avec toi et exécuter du code Python pour obtenir des infos système, faire des calculs ou manipuler des données.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Quel est mon espace disque ?\" ou \"Calcule la racine carrée de 144\"</span>");
                 });
         }
 
@@ -169,9 +169,7 @@
                     session_id: "default",
                     model_name: currentSettings.model,
                     tools_config: {
-                        lister: currentSettings.tools.lister,
-                        math: currentSettings.tools.math,
-                        search: currentSettings.tools.search
+                        executor_python: currentSettings.tools.executor_python
                     }
                 };
                 const response = await fetch("/chat", {
@@ -267,9 +265,7 @@
             model: 'qwen2.5-coder:3b',
             theme: 'light',
             tools: {
-                lister: true,
-                math: true,
-                search: true
+                executor_python: true
             }
         };
 
@@ -287,9 +283,7 @@
                     }
                     if (backendSettings.enabled_tools) {
                         currentSettings.tools = {
-                            lister: backendSettings.enabled_tools.lister ?? true,
-                            math: backendSettings.enabled_tools.math ?? true,
-                            search: backendSettings.enabled_tools.search ?? true
+                            executor_python: backendSettings.enabled_tools.executor_python ?? true
                         };
                     }
                 }
@@ -334,12 +328,8 @@
             const currentModel = document.getElementById('current-model');
             if (currentModel) currentModel.textContent = currentSettings.model;
             setTheme(currentSettings.theme);
-            const toolLister = document.getElementById('tool-lister');
-            if (toolLister) toolLister.checked = currentSettings.tools.lister;
-            const toolMath = document.getElementById('tool-math');
-            if (toolMath) toolMath.checked = currentSettings.tools.math;
-            const toolSearch = document.getElementById('tool-search');
-            if (toolSearch) toolSearch.checked = currentSettings.tools.search;
+            const toolExecutor = document.getElementById('tool-executor');
+            if (toolExecutor) toolExecutor.checked = currentSettings.tools.executor_python;
         }
 
         function setTheme(theme) {
@@ -368,9 +358,7 @@
         async function saveSettings() {
             currentSettings.model = document.getElementById('model-select').value;
             document.getElementById('current-model').textContent = currentSettings.model;
-            currentSettings.tools.lister = document.getElementById('tool-lister').checked;
-            currentSettings.tools.math = document.getElementById('tool-math').checked;
-            currentSettings.tools.search = document.getElementById('tool-search').checked;
+            currentSettings.tools.executor_python = document.getElementById('tool-executor').checked;
             localStorage.setItem('agentSettings', JSON.stringify(currentSettings));
             try {
                 const response = await fetch('/settings', {
@@ -379,9 +367,7 @@
                     body: JSON.stringify({
                         model_name: currentSettings.model,
                         enabled_tools: {
-                            lister: currentSettings.tools.lister,
-                            math: currentSettings.tools.math,
-                            search: currentSettings.tools.search
+                            executor_python: currentSettings.tools.executor_python
                         }
                     })
                 });

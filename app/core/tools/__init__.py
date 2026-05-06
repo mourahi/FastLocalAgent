@@ -1,4 +1,5 @@
 from .python_executor_tool import executor_python
+from .windows_command_tool import executor_cmd
 from ..config import Config
 
 def get_active_tools():
@@ -9,7 +10,8 @@ def get_active_tools():
         list: Liste des outils activés
     """
     tools_map = {
-        "executor_python": executor_python
+        "executor_python": executor_python,
+        "executor_cmd": executor_cmd,
     }
 
     active_tools = []

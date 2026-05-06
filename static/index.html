@@ -18,6 +18,7 @@
         }
     </style>
 </head>
+</head>
 <body>
     <header class="bg-white border-b border-gray-200 p-4">
         <div class="max-w-4xl mx-auto flex justify-between items-center">
@@ -66,6 +67,13 @@
 
 
     <script>
+        // Configurer Marked pour permettre le HTML
+        marked.setOptions({
+            sanitize: false,
+            breaks: true,
+            gfm: true
+        });
+        
         const chat = document.getElementById("chat");
         const input = document.getElementById("input");
         
@@ -160,7 +168,6 @@
             input.value = "";
             chat.scrollTop = chat.scrollHeight;
             const aiBubble = createMessageBubble(false);
-            aiBubble.textContent = "Réflexion en cours...";
             let fullContent = "";
             let lastSseMessage = "";
             try {
@@ -205,6 +212,15 @@
                         }
                     }
                 }
+                // Masquer les éléments de processus après un court délai
+                setTimeout(() => {
+                    const processes = aiBubble.querySelectorAll('.process');
+                    processes.forEach(p => {
+                        p.style.transition = 'opacity 0.5s ease-out';
+                        p.style.opacity = '0';
+                        setTimeout(() => p.remove(), 500);
+                    });
+                }, 1000); // Attendre 1 seconde avant de commencer à masquer
                 console.log('Réponse complète reçue, sauvegarde du chat...');
                 saveChat(); // Sauvegarder après la réponse complète
             } catch (error) {
@@ -265,7 +281,8 @@
             model: 'qwen2.5-coder:3b',
             theme: 'light',
             tools: {
-                executor_python: true
+                executor_python: true,
+                executor_cmd: true,
             }
         };
 
@@ -283,7 +300,8 @@
                     }
                     if (backendSettings.enabled_tools) {
                         currentSettings.tools = {
-                            executor_python: backendSettings.enabled_tools.executor_python ?? true
+                            executor_python: backendSettings.enabled_tools.executor_python ?? true,
+                            executor_cmd: backendSettings.enabled_tools.executor_cmd ?? true,
                         };
                     }
                 }
@@ -330,6 +348,8 @@
             setTheme(currentSettings.theme);
             const toolExecutor = document.getElementById('tool-executor');
             if (toolExecutor) toolExecutor.checked = currentSettings.tools.executor_python;
+            const toolCmd = document.getElementById('tool-cmd');
+            if (toolCmd) toolCmd.checked = currentSettings.tools.executor_cmd;
         }
 
         function setTheme(theme) {
@@ -359,6 +379,7 @@
             currentSettings.model = document.getElementById('model-select').value;
             document.getElementById('current-model').textContent = currentSettings.model;
             currentSettings.tools.executor_python = document.getElementById('tool-executor').checked;
+            currentSettings.tools.executor_cmd = document.getElementById('tool-cmd')?.checked ?? currentSettings.tools.executor_cmd;
             localStorage.setItem('agentSettings', JSON.stringify(currentSettings));
             try {
                 const response = await fetch('/settings', {
@@ -367,7 +388,8 @@
                     body: JSON.stringify({
                         model_name: currentSettings.model,
                         enabled_tools: {
-                            executor_python: currentSettings.tools.executor_python
+                            executor_python: currentSettings.tools.executor_python,
+                            executor_cmd: currentSettings.tools.executor_cmd,
                         }
                     })
                 });

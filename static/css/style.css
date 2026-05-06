@@ -42,6 +42,30 @@ pre {
     font-size: 0.9em;
 }
 
+.code-block {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #1e2937;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.code-result {
+    background: #ecfdf5;
+    border: 1px solid #d1fae5;
+    color: #065f46;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
 /* Améliorations visuelles */
 input:focus {
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);

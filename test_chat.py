@@ -4,7 +4,7 @@ import json
 # Test the chat endpoint
 url = "http://127.0.0.1:8000/chat"
 data = {
-    "text": "utliser python pour me donner combien me reste d'espace disque",
+    "text": "quelle heure est t elle ?",
     "session_id": "test_session",
     "model_name": "qwen2.5-coder:3b",
     "tools_config": {

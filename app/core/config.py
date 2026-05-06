@@ -16,7 +16,8 @@ class Config:
     enabled_tools: dict = {
         "lister": False,  # Désactivé car redondant avec executor_python
         "search": False,  # Désactivé car redondant avec executor_python
-        "executor_python": True
+        "executor_python": True,
+        "executor_cmd": True,
     }
     
     # URL of the Ollama server (default http://localhost:11434)

@@ -6,6 +6,38 @@ import time
 from ..config import Config
 from langchain_core.tools import tool
 
+def _fix_common_errors(code: str) -> str:
+    """Corrige les erreurs courantes dans le code Python généré par l'agent."""
+    # Corriger les f-strings avec des formats invalides
+    # Ex: {stat.free / (1024**3):.f} -> {stat.free / (1024**3):.2f}
+    code = re.sub(r'\{([^}]+):\.f\}', r'{\1:.2f}', code)
+
+    # Corriger les appels de méthodes incomplets
+    # Ex: stat = .disk_usage('C:/') -> stat = shutil.disk_usage('C:/')
+    if 'disk_usage' in code:
+        code = re.sub(r'(\w+)\s*=\s*\.disk_usage', r'\1 = shutil.disk_usage', code)
+        code = re.sub(r'stat\s*=\s*\.disk_usage', r'stat = shutil.disk_usage', code)
+
+    # Corriger les références de variables manquantes dans les f-strings
+    # Ex: {.free -> {stat.free (si on détecte un contexte disk_usage)
+    if 'disk_usage' in code and re.search(r'\{(\.|\s*\.)', code):
+        code = re.sub(r'\{(\.|\s*\.)free', r'{stat.free', code)
+        code = re.sub(r'\{(\.|\s*\.)used', r'{stat.used', code)
+        code = re.sub(r'\{(\.|\s*\.)total', r'{stat.total', code)
+
+    # Corriger les affectations incomplètes
+    # Ex: stat = -> stat = shutil.disk_usage('C:/') (si contexte disk_usage)
+    if 'disk_usage' in code and re.search(r'^\s*stat\s*=\s*$', code, re.MULTILINE):
+        code = re.sub(r'^\s*stat\s*=\s*$', r"stat = shutil.disk_usage('C:/')", code, flags=re.MULTILINE)
+
+    # Corriger les imports manquants pour les fonctions utilisées
+    if 'shutil.disk_usage' in code and 'import shutil' not in code:
+        code = 'import shutil\n' + code
+    if ('psutil.virtual_memory' in code or 'psutil.cpu_percent' in code) and 'import psutil' not in code:
+        code = 'import psutil\n' + code
+
+    return code
+
 @tool
 def executor_python(code: str, timeout: float = None) -> str:
     """Exécute du code Python pour récupérer des informations système (heure, date, fichiers locaux) ou effectuer des calculs complexes.
@@ -32,6 +64,9 @@ def executor_python(code: str, timeout: float = None) -> str:
     if len(code) > 1000:
         return "Erreur : Code trop long (maximum 1000 caractères)"
 
+    # Corriger les erreurs courantes dans le code avant validation
+    code = _fix_common_errors(code)
+
     # Valider la syntaxe — si invalide, tenter un fallback basé sur l'intention
     try:
         compile(code, '<string>', 'exec')
@@ -42,7 +77,7 @@ def executor_python(code: str, timeout: float = None) -> str:
             code = (
                 "import shutil\n"
                 "du = shutil.disk_usage('" + drive + "')\n"
-                "print(f'Libre : {du.free/1024**3:.1f} Go  |  Utilisé : {du.used/1024**3:.1f} Go  |  Total : {du.total/1024**3:.1f} Go')"
+                f"print(f'{{du.free / (1024**3):.1f}} GB libres sur {drive.rstrip(chr(92))}')"
             )
         elif 'virtual_memory' in code or 'ram' in code.lower() or 'memory' in code.lower():
             code = (

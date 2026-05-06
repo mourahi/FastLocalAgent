@@ -35,10 +35,10 @@ async def startup_event():
     if Config.enable_model_check:
         await initialize_default_model()
 
-    # Précharger l'agent complet en arrière-plan
+    # Précharger l'agent complet avant d'accepter les requêtes
     if Config.enable_model_preloading:
-        asyncio.create_task(preload_agent_async())
-        print("🔄 Préchargement de l'agent en cours (asynchrone)...")
+        await preload_agent_async()
+        print("🔄 Préchargement de l'agent terminé avant le démarrage du serveur")
     else:
         print("ℹ️ Préchargement de l'agent désactivé (démarrage rapide)")
 

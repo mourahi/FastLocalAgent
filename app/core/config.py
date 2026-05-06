@@ -14,9 +14,10 @@ class Config:
     
     # Outils activés par défaut
     enabled_tools: dict = {
-        "lister": True,
-        "math": True,
-        "search": True
+        "lister": False,  # Désactivé car redondant avec executor_python
+        "search": False,  # Désactivé car redondant avec executor_python
+        "executor_python": True,
+        "executor_cmd": True,
     }
     
     # URL of the Ollama server (default http://localhost:11434)
@@ -29,6 +30,10 @@ class Config:
 
     # Flag to request stopping the current model processing
     stop_requested: bool = False
+    
+    # Performance settings
+    enable_model_preloading: bool = True  # Activé par défaut pour éviter la latence de la première requête
+    enable_model_check: bool = True  # Vérifier la disponibilité des modèles au démarrage
     
     @classmethod
     def get_model_name(cls) -> str:
@@ -76,10 +81,32 @@ class Config:
         return cls.enabled_tools.get(tool_name, False)
     
     @classmethod
+    def get_enable_model_preloading(cls) -> bool:
+        """Retourne si le préchargement du modèle est activé"""
+        return cls.enable_model_preloading
+    
+    @classmethod
+    def set_enable_model_preloading(cls, enabled: bool) -> None:
+        """Active/désactive le préchargement du modèle"""
+        cls.enable_model_preloading = enabled
+    
+    @classmethod
+    def get_enable_model_check(cls) -> bool:
+        """Retourne si la vérification des modèles est activée"""
+        return cls.enable_model_check
+    
+    @classmethod
+    def set_enable_model_check(cls, enabled: bool) -> None:
+        """Active/désactive la vérification des modèles au démarrage"""
+        cls.enable_model_check = enabled
+    
+    @classmethod
     def to_dict(cls) -> dict:
         """Retourne la configuration complète sous forme de dictionnaire"""
         return {
             "model_name": cls.model_name,
             "temperature": cls.temperature,
-            "enabled_tools": cls.enabled_tools
+            "enabled_tools": cls.enabled_tools,
+            "enable_model_preloading": cls.enable_model_preloading,
+            "enable_model_check": cls.enable_model_check
         }

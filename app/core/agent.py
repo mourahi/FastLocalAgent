@@ -17,12 +17,6 @@ def get_agent(force_recreate: bool = False):
     """
     Crée et retourne l'agent IA.
     Utilise un cache pour éviter de recréer l'agent à chaque fois.
-
-    Args:
-        force_recreate: Force la recréation de l'agent (utile après changement de config)
-
-    Returns:
-        Agent: Instance de l'agent ReAct
     """
     global _agent_cache, _config_cache
 
@@ -37,10 +31,8 @@ def get_agent(force_recreate: bool = False):
     # Libérer les ressources de l'ancien agent si nécessaire
     if _agent_cache is not None:
         try:
-            # Nettoyer l'ancien agent et libérer la mémoire
             del _agent_cache
             _agent_cache = None
-            # Forcer le garbage collector
             gc.collect()
         except Exception as e:
             print(f"Erreur lors de la libération de l'ancien agent: {e}")
@@ -54,7 +46,6 @@ def get_agent(force_recreate: bool = False):
         tools=active_tools,
         checkpointer=memory,
         prompt=SYSTEM_PROMPT,
-        debug=False  # Désactiver le mode debug pour éviter l'affichage JSON
     )
 
     _config_cache = current_config

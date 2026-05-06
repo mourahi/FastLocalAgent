@@ -2,12 +2,12 @@
 
 ## 🎯 Vue d'Ensemble
 
-**FastAgent** est un agent conversationnel IA local qui tourne avec **Ollama** et **Qwen2.5-3B**. Il fournit une interface chat web moderne pour interagir avec un agent LangGraph ReAct équipé d'outils personnalisés.
+**FastAgent** est un agent conversationnel IA local qui tourne avec **Ollama** et **Qwen2.5-Coder-3B**. Il fournit une interface chat web moderne pour interagir avec un agent LangGraph ReAct équipé d'outils personnalisés.
 
 ### Stack Technique
 - **Backend** : FastAPI + Uvicorn
 - **Agent Framework** : LangGraph (ReAct Agent)
-- **LLM** : Qwen2.5-3B via Ollama
+- **LLM** : Qwen2.5-Coder-3B via Ollama
 - **Frontend** : HTML + Tailwind CSS + JavaScript
 - **Streaming** : Server-Sent Events (SSE)
 
@@ -19,25 +19,25 @@
 FastAgent/
 ├── run.py                          # Lanceur : uvicorn.run("app.main:app", port=8000)
 ├── app/
-│   ├── main.py                     # App FastAPI + CORS + Static Files
+│   ├── main.py                     # App FastAPI + Préchargement de l'agent
 │   ├── api/
-│   │   └── routes.py               # Routes: GET /, POST /chat (streaming)
+│   │   └── routes.py               # Routes: POST /chat (streaming SSE filtré), /settings, /stop
 │   ├── core/
-│   │   ├── agent.py                # create_react_agent() avec mémoire
-│   │   ├── llm.py                  # ChatOllama(model="qwen2.5:3b")
-│   │   ├── prompt.py               # SYSTEM_PROMPT (identité agent)
+│   │   ├── agent.py                # create_react_agent() avec MemorySaver et gestion mémoire
+│   │   ├── config.py               # Config globale (modèle, température, outils, timeouts)
+│   │   ├── llm.py                  # ChatOllama(model="qwen2.5-coder:3b")
+│   │   ├── prompt.py               # SYSTEM_PROMPT (identité "Agent Local")
 │   │   └── tools/
-│   │       ├── __init__.py         # TOOLS = [search_tool, math_tool, lister_fichiers]
-│   │       ├── lister_fichiers_tool.py
-│   │       ├── math_tool.py
-│   │       └── search_tool.py
+│   │       ├── __init__.py         # TOOLS = [executor_python]
+│   │       └── python_executor_tool.py # Outil polyvalent (calculs, système, Windows safe)
 │   └── schemas/
-│       └── chat.py                 # Message(text: str, session_id: str)
+│       └── chat.py                 # Message(text, session_id, model_name, etc.)
 ├── static/
-│   ├── index.html                  # UI Chat + Tailwind + Marked.js
+│   ├── index.html                  # UI Chat + Tailwind + Marked.js + Paramètres
+│   ├── settings-modal.html         # Template de la modale de configuration
 │   └── css/
-│       └── style.css               # Styles bulles de chat
-└── images/                         # Assets statiques
+│       └── style.css               # Styles bulles de chat et thèmes
+└── conversations/                 # Stockage des historiques JSON
 ```
 
 ---
@@ -157,7 +157,7 @@ def get_llm(model_name: str = None, temperature: float = None):
 ```
 
 **Configuration** :
-- Modèle : Dynamique via `Config` (défaut: `qwen2.5:3b`)
+- Modèle : Dynamique via `Config` (défaut: `qwen2.5-coder:3b`)
 - Température : Dynamique via `Config` (défaut: 0.1)
 - Streaming activé
 - **Supporte le changement dynamique de modèle**
@@ -168,16 +168,13 @@ def get_llm(model_name: str = None, temperature: float = None):
 
 ```python
 SYSTEM_PROMPT = """Tu es un assistant local simple, utile et direct nommé "Agent Local".
+Tu réponds TOUJOURS en français. Sois court, clair et direct.
 
-Tu n'es PAS Claude, tu n'es pas fait par Anthropic. 
-Tu es un petit modèle Qwen2.5-3B qui tourne en local avec Ollama.
-
-Règles importantes :
-- Réponds toujours en français.
-- Sois court, clair et direct.
-- Si l'utilisateur demande de lister des fichiers ou voir le contenu d'un dossier, utilise l'outil "lister_fichiers".
-- Sinon, réponds directement sans outil.
-- Ne dis jamais que tu es Claude ou que tu es créé par Anthropic."""
+RÈGLES IMPORTANTES :
+1. CHAT : Discute naturellement.
+2. DONNÉES : Si tu as besoin d'infos système (espace disque, fichiers, date) ou de calculs, utilise l'outil executor_python.
+3. Ne dis JAMAIS que tu es Claude ou fait par Anthropic. Tu es un modèle local Qwen2.5-Coder.
+"""
 ```
 
 ---
@@ -188,13 +185,12 @@ Règles importantes :
 class Config:
     """Configuration globale de l'application"""
     
-    model_name: str = "qwen2.5:3b"
-    temperature: float = 0.1
+    model_name: str = "qwen2.5-coder:3b"
+    temperature: float = 0.7
     enabled_tools: dict = {
-        "lister": True,
-        "math": True,
-        "search": True
+        "executor_python": True
     }
+    tool_timeout: float = 3.0
     
     @classmethod
     def get_model_name(cls) -> str: ...
@@ -219,120 +215,46 @@ class Config:
 
 ---
 
-### 7. Outils (`app/core/tools/`)
+### 7. Outil Principal (`app/core/tools/`)
 
-#### `lister_fichiers_tool.py`
+#### `python_executor_tool.py`
+L'outil principal est `executor_python`. Il permet à l'agent d'obtenir des données en temps réel (date, fichiers, système) ou d'effectuer des calculs complexes en exécutant du code Python sécurisé.
+Il inclut une compatibilité automatique pour Windows (ex: conversion de `os.statvfs` en `shutil.disk_usage`).
+
 ```python
-import os
-from langchain_core.tools import tool
-
 @tool
-def lister_fichiers(path: str) -> str:
-    """Liste les fichiers d'un répertoire donné (maximum 20 fichiers)."""
-    try:
-        abs_path = os.path.abspath(path)
-        files = os.listdir(abs_path)
-        return "\n".join(files[:20])
-    except Exception as e:
-        return f"Erreur lors de l'accès au dossier : {str(e)}"
-```
-
-#### `math_tool.py`
-```python
-def math_tool(expression: str) -> str:
-    """Exemple d'outil de calcul mathématique."""
-    try:
-        result = eval(expression)
-        return f"Résultat : {result}"
-    except Exception as e:
-        return f"Erreur de calcul : {e}"
-```
-
-#### `search_tool.py`
-```python
-def search_tool(query: str) -> str:
-    """Exemple d'outil de recherche simple."""
-    return f"Résultat de la recherche pour : {query}"
+def executor_python(code: str) -> str:
+    """Exécute du code Python pour récupérer des informations système ou effectuer des calculs."""
+    # ... exécution sécurisée via subprocess ...
+    # ... transformation de code pour compatibilité Windows ...
 ```
 
 #### `__init__.py`
 ```python
-from .search_tool import search_tool
-from .math_tool import math_tool
-from .lister_fichiers_tool import lister_fichiers
-from ..config import Config
+from .python_executor_tool import executor_python
 
 def get_active_tools():
-    """Retourne la liste des outils activés selon la configuration."""
-    tools_map = {
-        "lister": lister_fichiers,
-        "math": math_tool,
-        "search": search_tool
-    }
-    
-    active_tools = []
-    enabled = Config.get_enabled_tools()
-    
-    for tool_name, tool_func in tools_map.items():
-        if enabled.get(tool_name, False):
-            active_tools.append(tool_func)
-    
-    return active_tools
-
-# Outils actifs par défaut
-TOOLS = get_active_tools()
+    return [executor_python]
 ```
-
-**Fonctionnalité clé** : Filtrage dynamique des outils selon la configuration utilisateur.
 
 ---
 
 ### 4. Configuration LLM (`app/core/llm.py`)
 
+Le streaming utilise LangGraph `astream_events` (v2) avec un filtrage intelligent pour masquer les tokens techniques (JSON, ReAct, code brut) et ne montrer que la réponse naturelle.
+
 ```python
-from fastapi import APIRouter
-from fastapi.responses import FileResponse, StreamingResponse
-from ..schemas.chat import Message
-from ..core.agent import get_agent
-import json
-
-router = APIRouter()
-agent = get_agent()  # Singleton
-
-@router.get("/")
-async def home():
-    return FileResponse("static/index.html")
-
 @router.post("/chat")
 async def chat(msg: Message):
+    # ...
     async def event_generator():
-        config = {"configurable": {"thread_id": msg.session_id}}
-        
-        async for event in agent.astream_events(
-            {"messages": [("human", msg.text)]},
-            version="v2",
-            config=config,
-        ):
-            kind = event["event"]
-            
+        async for event in current_agent.astream_events(...):
             if kind == "on_chat_model_stream":
-                content = event["data"]["chunk"].content
-                if content:
-                    yield f"data: {json.dumps({'chunk': content})}\n\n"
-            
-            elif kind == "on_tool_start":
-                tool_name = event.get("name", "outil")
-                message = f"\n→ Utilisation de l'outil : {tool_name}\n"
-                yield f"data: {json.dumps({'chunk': message})}\n\n"
-            
-            elif kind == "on_tool_end":
-                output = event["data"].get("output", "")
-                if isinstance(output, str) and output.strip():
-                    short = output[:300] + "..." if len(output) > 300 else output
-                    message = f"\nRésultat :\n{short}\n"
-                    yield f"data: {json.dumps({'chunk': message})}\n\n"
-    
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+                # Filtrage des patterns techniques: {, }, "name", Action:, etc.
+                if any(pattern in content for pattern in technical_patterns):
+                    continue
+                yield f"data: {json.dumps({'message': content})}\n\n"
+            # ...
 ```
 
 **Événements streamés** :
@@ -417,7 +339,7 @@ class SettingsUpdate(BaseModel):
 **Paramètres persistants** (localStorage) :
 ```javascript
 {
-    model: 'qwen2.5:3b',
+    model: 'qwen2.5-coder:3b',
     theme: 'light' | 'dark',
     tools: {
         lister: true,
@@ -491,7 +413,7 @@ POST /chat (text + session_id)
 routes.py → agent.astream_events()
     ↓
 LangGraph Agent (ReAct)
-    ├─→ LLM (qwen2.5:3b)
+    ├─→ LLM (qwen2.5-coder:3b)
     └─→ Tools (si nécessaire)
     ↓
 Streaming SSE (chunks JSON)
@@ -517,7 +439,7 @@ http://127.0.0.1:8000
 ```bash
 # Installer Ollama
 # Télécharger le modèle
-ollama pull qwen2.5:3b
+ollama pull qwen2.5-coder:3b
 
 # Installer les dépendances Python
 pip install fastapi uvicorn langgraph langchain-ollama pydantic
@@ -585,10 +507,10 @@ pydantic
 ## ⚠️ Limitations Connues
 
 1. **Modèle 3B** : Capacités limitées vs modèles plus gros
-2. **eval()** : Risque de sécurité dans math_tool
+2. **Sécurité** : `executor_python` exécute du code local (restrictions basiques appliquées)
 3. **CORS ouvert** : À restreindre en production
-4. **Pas de BDD** : Mémoire uniquement en RAM
-5. **search_tool** : Placeholder, pas implémenté
+4. **Pas de BDD** : Mémoire uniquement en RAM (historique perdu au redémarrage si non sauvegardé via l'API)
+5. **Dépendance Ollama** : Nécessite Ollama en cours d'exécution localement
 
 ---
 
@@ -598,9 +520,11 @@ pydantic
 
 **Flow** : User → POST /chat → LangGraph → LLM + Tools → SSE Stream → UI
 
-**Outils** : lister_fichiers, math_tool, search_tool
+**Outils** : executor_python (polyvalent et sécurisé)
 
-**Mémoire** : MemorySaver avec thread_id par session
+**Mémoire** : MemorySaver avec thread_id par session et gestion explicite du cache agent
+
+**Performance** : Préchargement asynchrone de l'agent et vérification des modèles au démarrage
 
 **Langue** : Français uniquement
 

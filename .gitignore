@@ -41,4 +41,3 @@ conversations/
 *.log
 continue/
 .continue/
-preload_model.py

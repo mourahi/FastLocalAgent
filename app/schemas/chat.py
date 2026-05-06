@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Dict, Literal
+from typing import Optional, Dict
 
 class Message(BaseModel):
     text: str = Field(..., min_length=1, max_length=4096, description="Message de l'utilisateur")
@@ -20,6 +20,8 @@ class SettingsUpdate(BaseModel):
     model_name: Optional[str] = Field(default=None, max_length=100, description="Nom du modèle à utiliser")
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0, description="Température du modèle (0.0-2.0)")
     enabled_tools: Optional[Dict[str, bool]] = Field(default=None, description="Outils activés")
+    enable_model_preloading: Optional[bool] = Field(default=None, description="Activer le préchargement du modèle")
+    enable_model_check: Optional[bool] = Field(default=None, description="Activer la vérification des modèles au démarrage")
     
     @field_validator('temperature')
     @classmethod

@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep *)",
+      "Bash(python -m py_compile app/*.py app/**/*.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/health)",
+      "Bash(python run.py)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/)",
+      "Read(//c/Users/dell/**)",
+      "Read(//c/Temp/**)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Read(//usr/**)",
+      "Read(//usr/local/**)",
+      "Bash(cmd.exe /c \"python --version 2>&1\")",
+      "Bash(curl -s -N -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"message\": \"combien me reste d'\\\\''espace disque ?\", \"thread_id\": \"test-1\"}' --max-time 30)",
+      "Bash(curl -s -N -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"text\": \"combien me reste d'\\\\''espace disque ?\", \"thread_id\": \"test-1\"}' --max-time 30)",
+      "Bash(curl -v -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"text\": \"combien me reste d'\\\\''espace disque ?\", \"thread_id\": \"test-1\"}' --max-time 15)",
+      "Bash(curl -s -N -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"text\": \"combien me reste d'\\\\''espace disque ?\", \"thread_id\": \"test-2\"}' --max-time 60)",
+      "Bash(curl -s -N -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"text\": \"combien me reste d'\\\\''espace disque ?\", \"thread_id\": \"test-3\"}' --max-time 60)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -N -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"text\": \"combien me reste espace disque\", \"thread_id\": \"test-4\"}' --max-time 60)",
+      "Bash(curl -s -N -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"text\": \"combien me reste espace disque\", \"thread_id\": \"test-mistral-1\", \"model_name\": \"mistral-nemo\"}' --max-time 120)",
+      "Bash(curl -s http://localhost:8000/settings)",
+      "Bash(pip show *)"
+    ]
+  }
+}

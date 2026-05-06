@@ -18,6 +18,7 @@
         }
     </style>
 </head>
+</head>
 <body>
     <header class="bg-white border-b border-gray-200 p-4">
         <div class="max-w-4xl mx-auto flex justify-between items-center">
@@ -57,7 +58,7 @@
                     </svg>
                 </button>
             </div>
-            <p class="text-center text-[10px] text-gray-400 mt-3">Agent Local • Modèle <span id="current-model">qwen2.5:3b</span></p>
+            <p class="text-center text-[10px] text-gray-400 mt-3">Agent Local • Modèle <span id="current-model">qwen2.5-coder:3b</span></p>
         </div>
     </footer>
 
@@ -66,6 +67,13 @@
 
 
     <script>
+        // Configurer Marked pour permettre le HTML
+        marked.setOptions({
+            sanitize: false,
+            breaks: true,
+            gfm: true
+        });
+        
         const chat = document.getElementById("chat");
         const input = document.getElementById("input");
         
@@ -140,7 +148,7 @@
                     } else {
                         // Ajouter le message de bienvenue si aucun chat sauvegardé
                         const welcomeBubble = createMessageBubble(false);
-                        welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span>");
+                        welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux discuter avec toi et exécuter du code Python pour obtenir des infos système, faire des calculs ou manipuler des données.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Quel est mon espace disque ?\" ou \"Calcule la racine carrée de 144\"</span>");
                         saveChat();
                     }
                 })
@@ -148,7 +156,7 @@
                     console.error('Erreur lors du chargement du chat:', error);
                     // Fallback: afficher le message de bienvenue
                     const welcomeBubble = createMessageBubble(false);
-                    welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux lister tes fichiers, explorer des dossiers, et répondre à tes questions.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Liste les fichiers dans .\"</span>");
+                    welcomeBubble.innerHTML = marked.parse("👋 Bonjour ! Je suis **Agent Local**.\n\nJe peux discuter avec toi et exécuter du code Python pour obtenir des infos système, faire des calculs ou manipuler des données.\n\n<span class=\"text-sm text-gray-500\">Exemple : \"Quel est mon espace disque ?\" ou \"Calcule la racine carrée de 144\"</span>");
                 });
         }
 
@@ -160,17 +168,15 @@
             input.value = "";
             chat.scrollTop = chat.scrollHeight;
             const aiBubble = createMessageBubble(false);
-            aiBubble.textContent = "Réflexion en cours...";
             let fullContent = "";
+            let lastSseMessage = "";
             try {
                 const requestBody = {
                     text: text,
                     session_id: "default",
                     model_name: currentSettings.model,
                     tools_config: {
-                        lister: currentSettings.tools.lister,
-                        math: currentSettings.tools.math,
-                        search: currentSettings.tools.search
+                        executor_python: currentSettings.tools.executor_python
                     }
                 };
                 const response = await fetch("/chat", {
@@ -189,11 +195,16 @@
                         if (line.startsWith("data: ")) {
                             try {
                                 const data = JSON.parse(line.substring(6));
-                                if (data.chunk) {
+                                if (data.message) {
+                                    const message = data.message.replace(/\r/g, "");
+                                    if (!message) continue;
+                                    if (message === lastSseMessage) continue;
+                                    if (fullContent.endsWith(message)) continue;
+                                    lastSseMessage = message;
                                     if (aiBubble.textContent.includes("Réflexion")) {
                                         aiBubble.innerHTML = "";
                                     }
-                                    fullContent += data.chunk;
+                                    fullContent += message;
                                     aiBubble.innerHTML = marked.parse(fullContent);
                                     chat.scrollTop = chat.scrollHeight;
                                 }
@@ -201,6 +212,15 @@
                         }
                     }
                 }
+                // Masquer les éléments de processus après un court délai
+                setTimeout(() => {
+                    const processes = aiBubble.querySelectorAll('.process');
+                    processes.forEach(p => {
+                        p.style.transition = 'opacity 0.5s ease-out';
+                        p.style.opacity = '0';
+                        setTimeout(() => p.remove(), 500);
+                    });
+                }, 1000); // Attendre 1 seconde avant de commencer à masquer
                 console.log('Réponse complète reçue, sauvegarde du chat...');
                 saveChat(); // Sauvegarder après la réponse complète
             } catch (error) {
@@ -258,12 +278,11 @@
         }
 
         let currentSettings = {
-            model: 'qwen2.5:3b',
+            model: 'qwen2.5-coder:3b',
             theme: 'light',
             tools: {
-                lister: true,
-                math: true,
-                search: true
+                executor_python: true,
+                executor_cmd: true,
             }
         };
 
@@ -281,9 +300,8 @@
                     }
                     if (backendSettings.enabled_tools) {
                         currentSettings.tools = {
-                            lister: backendSettings.enabled_tools.lister ?? true,
-                            math: backendSettings.enabled_tools.math ?? true,
-                            search: backendSettings.enabled_tools.search ?? true
+                            executor_python: backendSettings.enabled_tools.executor_python ?? true,
+                            executor_cmd: backendSettings.enabled_tools.executor_cmd ?? true,
                         };
                     }
                 }
@@ -328,12 +346,10 @@
             const currentModel = document.getElementById('current-model');
             if (currentModel) currentModel.textContent = currentSettings.model;
             setTheme(currentSettings.theme);
-            const toolLister = document.getElementById('tool-lister');
-            if (toolLister) toolLister.checked = currentSettings.tools.lister;
-            const toolMath = document.getElementById('tool-math');
-            if (toolMath) toolMath.checked = currentSettings.tools.math;
-            const toolSearch = document.getElementById('tool-search');
-            if (toolSearch) toolSearch.checked = currentSettings.tools.search;
+            const toolExecutor = document.getElementById('tool-executor');
+            if (toolExecutor) toolExecutor.checked = currentSettings.tools.executor_python;
+            const toolCmd = document.getElementById('tool-cmd');
+            if (toolCmd) toolCmd.checked = currentSettings.tools.executor_cmd;
         }
 
         function setTheme(theme) {
@@ -362,9 +378,8 @@
         async function saveSettings() {
             currentSettings.model = document.getElementById('model-select').value;
             document.getElementById('current-model').textContent = currentSettings.model;
-            currentSettings.tools.lister = document.getElementById('tool-lister').checked;
-            currentSettings.tools.math = document.getElementById('tool-math').checked;
-            currentSettings.tools.search = document.getElementById('tool-search').checked;
+            currentSettings.tools.executor_python = document.getElementById('tool-executor').checked;
+            currentSettings.tools.executor_cmd = document.getElementById('tool-cmd')?.checked ?? currentSettings.tools.executor_cmd;
             localStorage.setItem('agentSettings', JSON.stringify(currentSettings));
             try {
                 const response = await fetch('/settings', {
@@ -373,9 +388,8 @@
                     body: JSON.stringify({
                         model_name: currentSettings.model,
                         enabled_tools: {
-                            lister: currentSettings.tools.lister,
-                            math: currentSettings.tools.math,
-                            search: currentSettings.tools.search
+                            executor_python: currentSettings.tools.executor_python,
+                            executor_cmd: currentSettings.tools.executor_cmd,
                         }
                     })
                 });
